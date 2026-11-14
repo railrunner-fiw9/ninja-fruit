@@ -669,7 +669,7 @@ async function startGame(){
   $('menu').classList.add('hidden'); $('results').classList.add('hidden');
 
   actx = actx || new (window.AudioContext||window.webkitAudioContext)();
-  try{ await actx.resume(); }catch(e){}
+  try{ actx.resume().catch(()=>{}); }catch(e){}
 
   if(state.camera && !handReady){
     try{ await initCamera(); }
@@ -694,7 +694,7 @@ async function startGame(){
   $('hud').classList.remove('hidden');
   $('hBpmBox').classList.toggle('hidden', state.mode==='none'||state.mode==='file');
   $('beatDot').classList.toggle('hidden', state.mode==='none');
-  if(state.mode==='file'){ await actx.resume(); startFilePlayback(); $('hBpmBox').classList.remove('hidden'); $('hBpm').textContent=fileBpm||'-'; }
+  if(state.mode==='file'){ try{ actx.resume().catch(()=>{}); }catch(e){} startFilePlayback(); $('hBpmBox').classList.remove('hidden'); $('hBpm').textContent=fileBpm||'-'; }
   if(TEST){ window.__nf.state.running=true; }
 }
 function endGame(){
