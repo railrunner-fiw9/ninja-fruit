@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>נינג'ה פרי 🥷🍉</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍉</text></svg>">
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#0b0f1a; color:#f2f5ff;
@@ -82,9 +83,9 @@
 
   <h2>🎵 מוזיקה</h2>
   <div class="cards" id="musicCards">
-    <div class="card" data-music="spotify"><div class="t">🎵 ספוטיפי</div><div class="d">מדביקים קישור לשיר מספוטיפי, מנגנים אותו באפליקציה - והפירות מגיעים בדיוק על הביט שהמשחק שומע</div></div>
-    <div class="card" data-music="mic"><div class="t">🎤 מוזיקה חיה</div><div class="d">תנגנו כל שיר בקול (מכל אפליקציה) - המשחק מזהה את הביטים דרך המיקרופון</div></div>
-    <div class="card" data-music="file"><div class="t">📁 קובץ שיר</div><div class="d">בוחרים קובץ שיר מהמכשיר - ניתוח מדויק מראש של כל הביטים</div></div>
+    <div class="card" data-music="spotify"><div class="t">🎵 ספוטיפי</div><div class="d">מדביקים קישור לשיר מספוטיפי ומנגנים אותו באפליקציה - שיר מהיר ומקפיץ ישגר המון פירות, שיר איטי ושקט רק קצת</div></div>
+    <div class="card" data-music="mic"><div class="t">🎤 מוזיקה חיה</div><div class="d">תנגנו כל שיר בקול (מכל אפליקציה) - המשחק מזהה את הקצב דרך המיקרופון: שיר מהיר = הרבה פירות, שיר איטי = מעט</div></div>
+    <div class="card" data-music="file"><div class="t">📁 קובץ שיר</div><div class="d">בוחרים קובץ שיר מהמכשיר - ניתוח מראש של הקצב והעוצמה לאורך כל השיר</div></div>
     <div class="card sel" data-music="none"><div class="t">🔇 בלי מוזיקה</div><div class="d">משחק קלאסי בלי קצב</div></div>
   </div>
 
@@ -92,7 +93,7 @@
     <p class="small">1️⃣ באפליקציית ספוטיפי בחר שיר → שיתוף → העתק קישור, ותדביק כאן:</p>
     <div class="row"><input type="text" id="spLink" placeholder="https://open.spotify.com/track/..." dir="ltr" style="width:min(94vw,330px)"><button class="btn" id="spFetch">מצא שיר 🔍</button></div>
     <div id="spPicked"></div>
-    <p class="small">2️⃣ כשהמשחק מתחיל: נגן את השיר באפליקציית ספוטיפי — המשחק שומע את הביטים דרך המיקרופון ומשגר פירות בדיוק על הקצב 🎤</p>
+    <p class="small">2️⃣ כשהמשחק מתחיל: נגן את השיר באפליקציית ספוטיפי — המשחק שומע את הקצב דרך המיקרופון ומשגר פירות לפיו: קצב מהיר ומקפיץ = המון פירות, קצב חלש ואיטי = בקושי פרי אחד 🎤</p>
   </div>
 
   <div id="filePanel" class="hidden" style="margin-top:10px">
@@ -112,7 +113,7 @@
 
   <button class="btn green" id="startBtn" style="font-size:1.4rem; padding:16px 40px">התחל! ⚔️</button>
   <div class="small" id="menuStatus" style="margin-top:8px"></div>
-  <p class="small">איך משחקים: הנע את האצבע מול המצלמה כדי לנופף בלהב. חתוך פירות 🍉🍊🍎 ותיזהר מפצצות 💣! ⭐ שווה בונוס. ❄️ קפאון מאט הכל ל-5 שניות.</p>
+  <p class="small">איך משחקים: הנע את האצבע מול המצלמה כדי לנופף בלהב. חתוך פירות 🍉🍊🍎 - בלי פצצות, רק כיף! ⭐ שווה בונוס. ❄️ קפאון מאט הכל ל-5 שניות.</p>
 </div>
 
 <div id="countOverlay" class="overlay hidden"><div id="countdown">3</div><p class="sub" id="countHint"></p></div>
@@ -179,12 +180,37 @@ function detectBeatsOffline(samples, sampleRate){
   iv.sort((a,b)=>a-b);
   let bpm=0;
   if(iv.length){ let med=iv[Math.floor(iv.length/2)];
-    while(med<60/200) med*=2; while(med>1.0) med/=2; bpm=Math.round(60/med); }
-  return {beats, bpm};
+    // fold into the 50-200 BPM band so slow songs stay slow
+    while(med<60/200) med*=2; while(med>60/50) med/=2; bpm=Math.round(60/med); }
+  // Per-frame song intensity in [0,1]: local tempo (beat density) + local energy
+  // vs the song's median. This, not single beats, drives how many fruits spawn.
+  // section energy: E smoothed over ~2s, so silence between beats does not
+  // zero the reference; normalized by the song's median section energy
+  const k2=Math.max(1,Math.round(2/frameT));
+  const Esec=new Float32Array(N); { let r2=0; const q=[];
+    for(let i=0;i<N;i++){ q.push(E[i]); r2+=E[i]; if(q.length>k2) r2-=q.shift(); Esec[i]=r2/q.length; } }
+  const srtE=[...Esec].sort((a,b)=>a-b); const medE=srtE[Math.floor(srtE.length/2)]||1e-9;
+  const intensity=new Float32Array(N); let lo=0, hi=0;
+  for(let i=0;i<N;i++){
+    const t=i*frameT;
+    while(lo<beats.length && beats[lo]<t-3) lo++;
+    while(hi<beats.length && beats[hi]<=t+3) hi++;
+    const localBpm=(hi-lo)/6*60;
+    const tScore=Math.min(1,Math.max(0,(localBpm-55)/100)); // 55bpm->0, 155bpm->1
+    const eScore=Math.min(1,Math.max(0,(Esec[i]/medE-0.35)/0.9)); // quiet section->0
+    intensity[i]=0.62*tScore+0.38*eScore;
+  }
+  // smooth over ~1s
+  const sm=new Float32Array(N); const k=Math.max(1,Math.round(1/frameT)); let run=0;
+  const swin=[];
+  for(let i=0;i<N;i++){ swin.push(intensity[i]); run+=intensity[i];
+    if(swin.length>k) run-=swin.shift();
+    sm[i]=run/swin.length; }
+  return {beats, bpm, intensity:sm, intensityStep:frameT};
 }
 // Realtime energy-flux onset detector for live audio (mic)
 class LiveBeatDetector {
-  constructor(){ this.hist=[]; this.histSum=0; this.lastBeat=-10; this.intervals=[]; this.lastE=0; }
+  constructor(){ this.hist=[]; this.histSum=0; this.lastBeat=-10; this.intervals=[]; this.lastE=0; this.long=[]; this.longSum=0; }
   feed(energy, t){
     const flux = Math.max(0, energy - this.lastE); this.lastE = energy;
     while(this.hist.length && this.hist[0].t < t-1.2){ this.histSum-=this.hist[0].v; this.hist.shift(); }
@@ -196,11 +222,23 @@ class LiveBeatDetector {
       this.lastBeat = t;
     }
     this.hist.push({t, v:flux}); this.histSum+=flux;
+    this.long.push({t, v:flux}); this.longSum+=flux;
+    while(this.long.length && this.long[0].t < t-12){ this.longSum-=this.long[0].v; this.long.shift(); }
     return beat;
   }
   bpm(){ if(this.intervals.length<4) return 0;
     const s=[...this.intervals].sort((a,b)=>a-b); let med=s[Math.floor(s.length/2)];
-    while(med<60/200) med*=2; while(med>1.0) med/=2; return Math.round(60/med); }
+    while(med<60/200) med*=2; while(med>60/50) med/=2; return Math.round(60/med); }
+  // Overall song drive in [0,1] from tempo (absolute, via BPM) and current
+  // energy vs the recent average. Slow+weak -> ~0, fast+punchy -> ~1.
+  intensity(){
+    let tScore=0;
+    const b=this.bpm(); if(b) tScore=Math.min(1,Math.max(0,(b-55)/100));
+    const shortAvg = this.hist.length? this.histSum/this.hist.length : 0;
+    const longAvg = this.long.length? this.longSum/this.long.length : 0;
+    const eScore = longAvg>1e-9? Math.min(1,Math.max(0,(shortAvg/longAvg-0.55)/0.9)) : 0;
+    return Math.min(1, Math.max(0, 0.62*tScore + 0.38*eScore));
+  }
 }
 // BEATDETECT-END
 
@@ -229,6 +267,7 @@ $('spFetch').onclick = async ()=>{
 // ============================ AUDIO / BEAT SOURCES ============================
 let actx = null, micStream = null, micAnalyser = null, liveDet = new LiveBeatDetector();
 let fileBeats = null, fileBpm = 0, fileBuffer = null, fileSource = null, fileT0 = 0, nextBeatIdx = 0;
+let fileIntensity = null; // {values, step}: song drive over time, from offline analysis
 let audioEl = null;
 
 async function startMic(){
@@ -255,7 +294,8 @@ async function loadSongFile(file){
   const mono = fileBuffer.getChannelData(0);
   const r = detectBeatsOffline(mono, fileBuffer.sampleRate);
   fileBeats = r.beats; fileBpm = r.bpm;
-  if(TEST){ window.__nf.lastBeats = r.beats; window.__nf.lastBpm = r.bpm; }
+  fileIntensity = { values: r.intensity, step: r.intensityStep };
+  if(TEST){ window.__nf.lastBeats = r.beats; window.__nf.lastBpm = r.bpm; window.__nf.lastIntensity = Array.from(r.intensity); }
   return r;
 }
 function startFilePlayback(){
@@ -277,10 +317,6 @@ function sfx(kind){
       o.type='triangle'; o.frequency.setValueAtTime(900,t); o.frequency.exponentialRampToValueAtTime(300,t+.12);
       g.gain.setValueAtTime(.15,t); g.gain.exponentialRampToValueAtTime(.001,t+.13);
       o.connect(g).connect(actx.destination); o.start(t); o.stop(t+.14); }
-    if(kind==='bomb'){ const o=actx.createOscillator(), g=actx.createGain();
-      o.type='sawtooth'; o.frequency.setValueAtTime(120,t); o.frequency.exponentialRampToValueAtTime(30,t+.5);
-      g.gain.setValueAtTime(.3,t); g.gain.exponentialRampToValueAtTime(.001,t+.5);
-      o.connect(g).connect(actx.destination); o.start(t); o.stop(t+.5); }
     if(kind==='beat'){ const o=actx.createOscillator(), g=actx.createGain();
       o.type='sine'; o.frequency.setValueAtTime(1800,t);
       g.gain.setValueAtTime(.04,t); g.gain.exponentialRampToValueAtTime(.001,t+.05);
@@ -326,38 +362,40 @@ const FRUITS = [
   {e:'🍇', juice:'#9d4edd', r:30, pts:10},
   {e:'⭐', juice:'#ffd60a', r:26, pts:30, rare:true},
 ];
-const BOMB = {e:'💣', juice:'#333', r:30};
 const G = 1400; // px/s^2
 const state = {
   running:false, paused:false, score:0, misses:0, sliced:0,
   fruits:[], parts:[], popups:[], blades:new Map(),
   mode:'none', endless:true, diff:'normal', camera:true, autoFreeze:false,
-  startT:0, elapsed:0, lastSpawn:0, spawnEvery:0.9, shakeT:0,
+  startT:0, elapsed:0, lastSpawn:0, spawnEvery:0.9,
   freezeUntil:0, freezeReadyAt:0, freezeUsed:0,
-  timed:60, beatFlashT:0, lastBeatSpawn:-10, bpm:0,
+  timed:60, beatFlashT:0, nextSpawnAt:0, curIntensity:0, bpm:0,
 };
 let best = +localStorage.getItem('nf_best')||0;
 $('hBest').textContent = best;
 
-function spawnFruit(forceType){
-  const hard = state.diff==='hard';
-  const roll = Math.random();
-  let type;
-  if(forceType==='bomb' || (!forceType && roll < (hard?0.13:0.08))) type = {bomb:true, ...BOMB};
-  else { const pool = FRUITS.filter(f=>!f.rare || Math.random()<0.12);
-    type = pool[Math.floor(Math.random()*pool.length)]; }
+function spawnFruit(){
+  const pool = FRUITS.filter(f=>!f.rare || Math.random()<0.12);
+  const type = pool[Math.floor(Math.random()*pool.length)];
   const x = W*(0.15+Math.random()*0.7);
   const peakY = H*(0.18+Math.random()*0.3);
   const vy = -Math.sqrt(2*G*(H+60-peakY));
   const vx = (W/2 - x)*(Math.random()*0.6)/1.5 + (Math.random()-0.5)*160;
   state.fruits.push({ x, y:H+50, vx, vy, r:type.r, e:type.e, juice:type.juice,
-    pts:type.pts||0, bomb:!!type.bomb, rot:Math.random()*6.28, vr:(Math.random()-0.5)*4,
+    pts:type.pts||0, rot:Math.random()*6.28, vr:(Math.random()-0.5)*4,
     sliced:false, born:state.elapsed, beat:false });
 }
-function spawnBeatFruits(strong){
+// Fruit amount follows the song's overall drive I in [0,1]: slow+weak ->
+// barely one fruit now and then, normal -> a few, fast+bouncy -> a lot.
+function spawnFruitGroup(I){
   spawnFruit();
-  if(strong || Math.random()<0.25) spawnFruit();
-  if(Math.random()<0.06) spawnFruit('bomb');
+  if(I>0.42 && Math.random()<0.25+0.55*I) spawnFruit();
+  if(I>0.72 && Math.random()<0.2+0.6*I) spawnFruit();
+}
+function intensityAt(t){
+  if(!fileIntensity) return 0;
+  const i = Math.max(0, Math.min(fileIntensity.values.length-1, Math.round(t/fileIntensity.step)));
+  return fileIntensity.values.length? fileIntensity.values[i] : 0;
 }
 function juiceSplash(x,y,color){
   for(let i=0;i<14;i++){ const a=Math.random()*6.28, s=120+Math.random()*320;
@@ -376,13 +414,8 @@ function sliceCheck(x1,y1,x2,y2){
     const d=Math.hypot(f.x-px,f.y-py);
     if(d < f.r + 16){
       f.sliced=true; hits++;
-      if(f.bomb){
-        state.score=Math.max(0,state.score-50); state.shakeT=0.4;
-        juiceSplash(f.x,f.y,'#555'); popup(f.x,f.y,'💥 -50','#ff5d8f'); sfx('bomb');
-      } else {
-        state.score+=f.pts; state.sliced++;
-        juiceSplash(f.x,f.y,f.juice); popup(f.x,f.y,'+'+f.pts,'#80ed99'); sfx('slice');
-      }
+      state.score+=f.pts; state.sliced++;
+      juiceSplash(f.x,f.y,f.juice); popup(f.x,f.y,'+'+f.pts,'#80ed99'); sfx('slice');
       if(TEST) window.__nf.state.slicedTotal = state.sliced;
     }
   }
@@ -435,21 +468,28 @@ function loop(nowMs){
     for(const k of [...state.blades.keys()]) if(k[0]==='h' && !seen.has(k)) clearBlade(k);
   }
 
-  // beats
+  // beats still flash the dot / update BPM, but fruit no longer spawns per
+  // beat: the spawn rate follows the song's overall tempo+energy instead.
   let beatNow=false;
   if(state.mode==='file' && fileBeats){
-    while(nextBeatIdx < fileBeats.length && songTime() >= fileBeats[nextBeatIdx]){
-      spawnBeatFruits(nextBeatIdx%4===0); nextBeatIdx++; beatNow=true;
-      if(TEST) window.__nf.spawnLog.push({t:+(songTime()).toFixed(3), beat:fileBeats[nextBeatIdx-1]});
-    }
+    while(nextBeatIdx < fileBeats.length && songTime() >= fileBeats[nextBeatIdx]){ nextBeatIdx++; beatNow=true; }
     if(fileBuffer && songTime() > fileBuffer.duration + 2) endGame();
   } else if((state.mode==='mic' || state.mode==='spotify') && micAnalyser){
     if(pollMicBeat()){
-      spawnBeatFruits(state.sliced%4===0); beatNow=true; state.lastBeatSpawn=state.elapsed;
+      beatNow=true;
       const b=liveDet.bpm(); if(b){ state.bpm=b; $('hBpm').textContent=b; }
     }
-    // baseline so silence never stalls the game
-    if(state.elapsed - state.lastBeatSpawn > 2.5){ spawnFruit(); state.lastBeatSpawn=state.elapsed; }
+  }
+  if(state.mode==='file' || ((state.mode==='mic' || state.mode==='spotify') && micAnalyser)){
+    // tempo-driven spawner: intensity maps to spawn interval 2.6s -> 0.55s
+    const I = state.mode==='file' ? intensityAt(songTime()) : liveDet.intensity();
+    state.curIntensity = I;
+    if(state.elapsed >= state.nextSpawnAt){
+      spawnFruitGroup(I);
+      const interval = 2.6 - 2.05*I;
+      state.nextSpawnAt = state.elapsed + interval*(0.8+Math.random()*0.4);
+      if(TEST) window.__nf.spawnLog.push({t:+state.elapsed.toFixed(3), I:+I.toFixed(3)});
+    }
   } else {
     // classic spawner
     if(state.elapsed - state.lastSpawn > state.spawnEvery){
@@ -465,7 +505,7 @@ function loop(nowMs){
   if(!state.endless && state.elapsed >= state.timed) endGame();
 
   // auto freeze
-  if(state.autoFreeze && state.elapsed >= state.freezeReadyAt && state.fruits.filter(f=>!f.sliced&&!f.bomb).length>=4) doFreeze(true);
+  if(state.autoFreeze && state.elapsed >= state.freezeReadyAt && state.fruits.filter(f=>!f.sliced).length>=4) doFreeze(true);
 
   // physics
   for(let i=state.fruits.length-1;i>=0;i--){
@@ -475,7 +515,7 @@ function loop(nowMs){
       if(f.x < f.r){ f.x=f.r; f.vx*=-0.7; } if(f.x > W-f.r){ f.x=W-f.r; f.vx*=-0.7; }
       if(f.y > H+90 && f.vy>0){
         state.fruits.splice(i,1);
-        if(!f.bomb){ state.misses++; $('hMiss').textContent=state.misses; popup(f.x, H-70, 'פסילה 😅', '#ff5d8f'); }
+        state.misses++; $('hMiss').textContent=state.misses; popup(f.x, H-70, 'פסילה 😅', '#ff5d8f');
         continue;
       }
     } else {
@@ -491,7 +531,6 @@ function loop(nowMs){
     p.t+=rawDt; p.y-=40*rawDt; if(p.t>1) state.popups.splice(i,1); }
 
   $('hScore').textContent = state.score;
-  if(state.shakeT>0) state.shakeT-=rawDt;
   // freeze button state
   const fb=$('freezeBtn');
   if(state.elapsed < state.freezeUntil){ fb.textContent='❄️ '+(state.freezeUntil-state.elapsed).toFixed(1); fb.classList.add('cooling'); }
@@ -504,7 +543,6 @@ function draw(nowMs){
   ctx.clearRect(0,0,W,H);
   ctx.direction='ltr';
   ctx.save();
-  if(state.shakeT>0) ctx.translate((Math.random()-.5)*16,(Math.random()-.5)*16);
   // camera background
   if(state.camera && video && handReady){
     ctx.save(); ctx.scale(-1,1);
@@ -610,8 +648,8 @@ async function startGame(){
   $('countOverlay').classList.add('hidden');
 
   Object.assign(state,{running:true,paused:false,score:0,misses:0,sliced:0,fruits:[],parts:[],popups:[],
-    startT:performance.now(),elapsed:0,lastSpawn:0,spawnEvery:state.diff==='hard'?0.7:0.9,shakeT:0,
-    freezeUntil:0,freezeReadyAt:state.diff==='hard'?25:15,lastBeatSpawn:-10,bpm:0});
+    startT:performance.now(),elapsed:0,lastSpawn:0,spawnEvery:state.diff==='hard'?0.7:0.9,
+    freezeUntil:0,freezeReadyAt:state.diff==='hard'?25:15,nextSpawnAt:0.8,curIntensity:0,bpm:0});
   $('hScore').textContent='0'; $('hMiss').textContent='0';
   $('hud').classList.remove('hidden');
   $('hBpmBox').classList.toggle('hidden', state.mode==='none'||state.mode==='file');
@@ -648,7 +686,9 @@ if(TEST){
     slicePath(pts){ for(let i=1;i<pts.length;i++) sliceCheck(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]); },
     spawnFruit, startGame, endGame, doFreeze,
     setMusic(m){ musicMode=m; },
-    getFruits(){ return state.fruits.map(f=>({x:f.x,y:f.y,bomb:f.bomb,sliced:f.sliced})); },
+    setSpotifyTrack(t){ spTrack=t; },
+    getFruits(){ return state.fruits.map(f=>({x:f.x,y:f.y,sliced:f.sliced})); },
+    getIntensity(){ return state.curIntensity; },
   };
 }
 
