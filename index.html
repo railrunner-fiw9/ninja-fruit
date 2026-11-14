@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>נינג'ה פרי 🥷🍉</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#0b0f1a; color:#f2f5ff;
+    font-family: "Segoe UI", Arial, "Noto Sans Hebrew", sans-serif; touch-action:none; }
+  #game { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  .overlay { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(8,10,20,.92); z-index:30; padding:18px; text-align:center; overflow-y:auto; }
+  .hidden { display:none !important; }
+  h1 { font-size:2.4rem; margin:.2em 0; text-shadow:0 0 18px #4cc9f0; }
+  h2 { font-size:1.5rem; margin:.3em 0; }
+  p.sub { color:#aab4d4; margin:.2em 0 1em; max-width:34em; line-height:1.5; }
+  .btn { display:inline-block; border:none; border-radius:14px; padding:14px 26px; margin:6px;
+    font-size:1.15rem; font-weight:700; color:#081018; background:linear-gradient(135deg,#4cc9f0,#4361ee);
+    cursor:pointer; box-shadow:0 4px 14px rgba(76,201,240,.35); font-family:inherit; }
+  .btn:active { transform:scale(.96); }
+  .btn.secondary { background:#222a44; color:#dfe6ff; box-shadow:none; }
+  .btn.green { background:linear-gradient(135deg,#80ed99,#38a3a5); }
+  .btn.red { background:linear-gradient(135deg,#ff5d8f,#d00000); color:#fff; }
+  .btn:disabled { opacity:.4; cursor:default; }
+  .cards { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; max-width:640px; }
+  .card { background:#161d33; border:2px solid #2a3556; border-radius:16px; padding:14px 18px; width:280px;
+    cursor:pointer; text-align:center; }
+  .card.sel { border-color:#4cc9f0; box-shadow:0 0 14px rgba(76,201,240,.5); }
+  .card .t { font-size:1.2rem; font-weight:800; margin-bottom:4px; }
+  .card .d { font-size:.85rem; color:#9aa6cc; line-height:1.4; }
+  .row { display:flex; align-items:center; gap:10px; justify-content:center; flex-wrap:wrap; margin:6px 0; }
+  .toggles { background:#11182c; border-radius:14px; padding:10px 16px; margin:10px 0; width:min(94vw,560px); }
+  .toggles label { display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:8px 2px; font-size:1.05rem; cursor:pointer; }
+  .toggles input[type=checkbox] { width:24px; height:24px; accent-color:#4cc9f0; }
+  select, input[type=text] { font-family:inherit; font-size:1rem; padding:10px 12px; border-radius:10px;
+    border:1px solid #2a3556; background:#0e1425; color:#f2f5ff; }
+  #hud { position:fixed; top:0; left:0; right:0; z-index:20; display:flex; align-items:center; gap:8px;
+    padding:8px 10px; background:linear-gradient(rgba(5,8,16,.75),transparent); pointer-events:none; }
+  #hud .stat { background:rgba(10,14,28,.7); border-radius:12px; padding:6px 12px; font-size:1.05rem; font-weight:700; }
+  #hud .stat small { display:block; font-size:.65rem; color:#8f9bc0; font-weight:400; }
+  #hud button { pointer-events:auto; }
+  #hud .spacer { flex:1; }
+  #beatDot { width:18px; height:18px; border-radius:50%; background:#333; transition:background .05s; margin:0 6px; }
+  .hbtn { border:none; border-radius:12px; padding:9px 14px; font-size:1rem; font-weight:700;
+    background:rgba(20,28,52,.85); color:#dfe6ff; cursor:pointer; font-family:inherit; }
+  #freezeBtn { background:linear-gradient(135deg,#89c2ff,#4361ee); color:#061020; }
+  #freezeBtn.cooling { background:#2a3556; color:#7c88ad; }
+  #toast { position:fixed; bottom:70px; left:50%; transform:translateX(-50%); background:rgba(10,14,28,.9);
+    border:1px solid #2a3556; padding:10px 18px; border-radius:12px; z-index:40; font-size:1rem; max-width:92vw; }
+  #camNote { position:fixed; bottom:8px; left:50%; transform:translateX(-50%); color:#6f7ba3; font-size:.75rem; z-index:15; }
+  .track { display:flex; align-items:center; gap:10px; background:#131a2e; border-radius:12px; padding:8px 10px;
+    margin:5px 0; cursor:pointer; width:min(94vw,520px); text-align:right; }
+  .track:hover, .track.sel { background:#1d2745; }
+  .track img { width:48px; height:48px; border-radius:8px; }
+  .track .n { font-weight:700; } .track .a { font-size:.85rem; color:#9aa6cc; }
+  #spSearch { width:min(94vw,380px); }
+  .small { font-size:.8rem; color:#8f9bc0; }
+  #countdown { font-size:6rem; font-weight:900; text-shadow:0 0 30px #4cc9f0; }
+  kbd { background:#222a44; border-radius:6px; padding:1px 7px; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud" class="hidden">
+  <div class="stat"><small>נקודות</small><span id="hScore">0</span></div>
+  <div class="stat"><small>פסילות</small><span id="hMiss">0</span></div>
+  <div class="stat"><small>שיא</small><span id="hBest">0</span></div>
+  <div class="stat hidden" id="hBpmBox"><small>קצב</small><span id="hBpm">-</span></div>
+  <div id="beatDot" class="hidden"></div>
+  <div class="spacer"></div>
+  <button class="hbtn" id="freezeBtn">❄️ קפאון</button>
+  <button class="hbtn" id="pauseBtn">⏸️</button>
+  <button class="hbtn" id="endBtn" style="background:#5b1d2a;color:#ffd9e2">🏁 סיים</button>
+</div>
+
+<div id="menu" class="overlay">
+  <h1>🥷 נינג'ה פרי 🍉</h1>
+  <p class="sub">אתה הנינג'ה - במציאות, דרך המצלמה! חתוך פירות עם היד באוויר (או בגרירה על המסך). פסילות נספרות אבל <b>לא</b> מסיימות את המשחק - רק אתה מחליט מתי לסיים.</p>
+
+  <h2>🎵 מוזיקה</h2>
+  <div class="cards" id="musicCards">
+    <div class="card" data-music="spotify"><div class="t">🎵 ספוטיפי</div><div class="d">מתחברים לספוטיפי, בוחרים שיר, מנגנים אותו באפליקציה - והפירות מגיעים בדיוק על הביט שהמשחק שומע</div></div>
+    <div class="card" data-music="mic"><div class="t">🎤 מוזיקה חיה</div><div class="d">תנגנו כל שיר בקול (מכל אפליקציה) - המשחק מזהה את הביטים דרך המיקרופון</div></div>
+    <div class="card" data-music="file"><div class="t">📁 קובץ שיר</div><div class="d">בוחרים קובץ שיר מהמכשיר - ניתוח מדויק מראש של כל הביטים</div></div>
+    <div class="card sel" data-music="none"><div class="t">🔇 בלי מוזיקה</div><div class="d">משחק קלאסי בלי קצב</div></div>
+  </div>
+
+  <div id="spotifyPanel" class="hidden" style="margin-top:10px; width:min(94vw,560px);">
+    <div id="spDisconnected">
+      <button class="btn green" id="spConnect">התחבר לספוטיפי 🎧</button>
+      <div class="small" style="margin-top:6px">מתקדם: <input type="text" id="spClientId" placeholder="Client ID משלך (אופציונלי)" style="width:240px"></div>
+    </div>
+    <div id="spConnected" class="hidden">
+      <div class="row"><span id="spUser" class="small"></span><button class="hbtn" id="spDisconnect">התנתק</button></div>
+      <div class="row"><input type="text" id="spSearch" placeholder="חפש שיר בספוטיפי..."><button class="btn" id="spGo">חפש</button></div>
+      <div id="spResults"></div>
+      <div id="spPicked" class="hidden"></div>
+    </div>
+  </div>
+
+  <div id="filePanel" class="hidden" style="margin-top:10px">
+    <button class="btn" id="pickFile">📁 בחר קובץ שיר</button>
+    <div id="fileInfo" class="small"></div>
+  </div>
+
+  <h2 style="margin-top:14px">🎮 משחק</h2>
+  <div class="toggles">
+    <label>שליטה ביד דרך המצלמה (אחרת: גרירה על המסך) <input type="checkbox" id="optCamera" checked></label>
+    <label>מצב אינסופי - בלי טיימר, מסיימים רק בכפתור 🏁 <input type="checkbox" id="optEndless" checked></label>
+    <label>הפעלה אוטומטית של קפאון ❄️ <input type="checkbox" id="optAutoFreeze"></label>
+    <label>רמת קושי:
+      <select id="optDiff"><option value="normal">רגיל</option><option value="hard">קשה 🔥</option></select>
+    </label>
+  </div>
+
+  <button class="btn green" id="startBtn" style="font-size:1.4rem; padding:16px 40px">התחל! ⚔️</button>
+  <div class="small" id="menuStatus" style="margin-top:8px"></div>
+  <p class="small">איך משחקים: הנע את האצבע מול המצלמה כדי לנופף בלהב. חתוך פירות 🍉🍊🍎 ותיזהר מפצצות 💣! ⭐ שווה בונוס. ❄️ קפאון מאט הכל ל-5 שניות.</p>
+</div>
+
+<div id="countOverlay" class="overlay hidden"><div id="countdown">3</div><p class="sub" id="countHint"></p></div>
+
+<div id="pauseOverlay" class="overlay hidden">
+  <h1>⏸️ הפסקה</h1>
+  <button class="btn green" id="resumeBtn">המשך</button>
+  <button class="btn red" id="quitBtn">🏁 סיים משחק</button>
+</div>
+
+<div id="results" class="overlay hidden">
+  <h1>🏁 תוצאות</h1>
+  <h2 id="rScore">0 נקודות</h2>
+  <p class="sub" id="rDetail"></p>
+  <p id="rBest" class="small"></p>
+  <button class="btn green" id="againBtn">🔁 שחק שוב</button>
+  <button class="btn secondary" id="menuBtn">תפריט</button>
+</div>
+
+<div id="toast" class="hidden"></div>
+<div id="camNote" class="hidden">📷 המצלמה רואה רק אצלך - שום דבר לא נשלח לשום מקום</div>
+<input type="file" id="fileInput" accept="audio/*" hidden>
+
+<script type="module">
+// ============================================================
+// נינג'ה פרי - Fruit Ninja where YOU are the ninja (webcam)
+// ============================================================
+const Q = new URLSearchParams(location.search);
+const TEST = Q.get('test') === '1';
+const $ = id => document.getElementById(id);
+const canvas = $('game'), ctx = canvas.getContext('2d');
+let W = 0, H = 0;
+function resize(){ W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+addEventListener('resize', resize); resize();
+
+function toast(msg, ms=2600){ const t=$('toast'); t.textContent=msg; t.classList.remove('hidden');
+  clearTimeout(t._tm); t._tm=setTimeout(()=>t.classList.add('hidden'), ms); }
+
+// ============================ BEAT DETECTION ============================
+// BEATDETECT-BEGIN
+function detectBeatsOffline(samples, sampleRate){
+  const cutoff = 180, rc = 1/(2*Math.PI*cutoff), dt = 1/sampleRate, alpha = dt/(rc+dt);
+  const lp = new Float32Array(samples.length); let y = 0;
+  for(let i=0;i<samples.length;i++){ y += alpha*(samples[i]-y); lp[i]=y; }
+  const hop=256, win=1024;
+  const N = Math.max(0, Math.floor((lp.length-win)/hop));
+  const E = new Float32Array(N);
+  for(let i=0;i<N;i++){ let e=0; const s=i*hop;
+    for(let j=0;j<win;j+=2){ const v=lp[s+j]; e+=v*v; } E[i]=e/(win/2); }
+  const F = new Float32Array(N);
+  for(let i=1;i<N;i++) F[i]=Math.max(0, E[i]-E[i-1]);
+  const beats=[]; const frameT=hop/sampleRate; const hist=[]; let lastT=-10;
+  let histSum=0;
+  for(let i=1;i<N;i++){
+    const t=i*frameT, v=F[i];
+    while(hist.length && hist[0].t < t-1.0){ histSum-=hist[0].v; hist.shift(); }
+    const avg = hist.length ? histSum/hist.length : 0;
+    if(v > avg*1.5 && v > 1e-7 && t-lastT > 0.25 && F[i]>=F[i-1] && (i+1>=N || F[i]>=F[i+1])){
+      beats.push(t); lastT=t;
+    }
+    hist.push({t,v}); histSum+=v;
+  }
+  const iv=[]; for(let i=1;i<beats.length;i++) iv.push(beats[i]-beats[i-1]);
+  iv.sort((a,b)=>a-b);
+  let bpm=0;
+  if(iv.length){ let med=iv[Math.floor(iv.length/2)];
+    while(med<60/200) med*=2; while(med>1.0) med/=2; bpm=Math.round(60/med); }
+  return {beats, bpm};
+}
+// Realtime energy-flux onset detector for live audio (mic)
+class LiveBeatDetector {
+  constructor(){ this.hist=[]; this.histSum=0; this.lastBeat=-10; this.intervals=[]; this.lastE=0; }
+  feed(energy, t){
+    const flux = Math.max(0, energy - this.lastE); this.lastE = energy;
+    while(this.hist.length && this.hist[0].t < t-1.2){ this.histSum-=this.hist[0].v; this.hist.shift(); }
+    const avg = this.hist.length ? this.histSum/this.hist.length : 0;
+    let beat = false;
+    if(flux > avg*1.6 && flux > 6 && t-this.lastBeat > 0.24){
+      beat = true;
+      if(this.lastBeat>0){ const iv=t-this.lastBeat; if(iv>0.28 && iv<2.0){ this.intervals.push(iv); if(this.intervals.length>24) this.intervals.shift(); } }
+      this.lastBeat = t;
+    }
+    this.hist.push({t, v:flux}); this.histSum+=flux;
+    return beat;
+  }
+  bpm(){ if(this.intervals.length<4) return 0;
+    const s=[...this.intervals].sort((a,b)=>a-b); let med=s[Math.floor(s.length/2)];
+    while(med<60/200) med*=2; while(med>1.0) med/=2; return Math.round(60/med); }
+}
+// BEATDETECT-END
+
+// ============================ SPOTIFY (PKCE) ============================
+const SP = {
+  get clientId(){ return localStorage.getItem('nf_sp_cid') || 'PASTE_SPOTIFY_CLIENT_ID'; },
+  get token(){ const t=sessionStorage.getItem('nf_sp_tok'); const exp=+sessionStorage.getItem('nf_sp_exp')||0;
+    return (t && Date.now()<exp) ? t : null; },
+  get refresh(){ return sessionStorage.getItem('nf_sp_ref'); },
+  redirect: location.origin + location.pathname,
+};
+function b64url(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+async function spLogin(){
+  const cid = $('spClientId').value.trim();
+  if(cid) localStorage.setItem('nf_sp_cid', cid);
+  if(!SP.clientId || SP.clientId==='PASTE_SPOTIFY_CLIENT_ID'){ toast('חסר Client ID של ספוטיפי - שים אחד בשדה המתקדם'); return; }
+  const ver = b64url(crypto.getRandomValues(new Uint8Array(64)));
+  sessionStorage.setItem('nf_sp_ver', ver);
+  const ch = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ver)));
+  const url = 'https://accounts.spotify.com/authorize?response_type=code&client_id='+encodeURIComponent(SP.clientId)
+    +'&redirect_uri='+encodeURIComponent(SP.redirect)+'&code_challenge_method=S256&code_challenge='+ch
+    +'&scope=user-read-private user-read-email';
+  location.href = url;
+}
+async function spHandleCallback(){
+  const code = Q.get('code');
+  if(!code) return;
+  try{
+    const res = await fetch('https://accounts.spotify.com/api/token', { method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({ grant_type:'authorization_code', code,
+        redirect_uri: SP.redirect, client_id: SP.clientId, code_verifier: sessionStorage.getItem('nf_sp_ver')||'' }) });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error_description || data.error || 'token error');
+    sessionStorage.setItem('nf_sp_tok', data.access_token);
+    sessionStorage.setItem('nf_sp_exp', Date.now() + data.expires_in*1000 - 60000);
+    if(data.refresh_token) sessionStorage.setItem('nf_sp_ref', data.refresh_token);
+    toast('מחובר לספוטיפי! ✅');
+  }catch(e){ toast('התחברות נכשלה: '+e.message); }
+  history.replaceState(null,'',location.pathname);
+}
+async function spRefreshIfNeeded(){
+  if(SP.token || !SP.refresh) return;
+  try{
+    const res = await fetch('https://accounts.spotify.com/api/token', { method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({ grant_type:'refresh_token', refresh_token: SP.refresh, client_id: SP.clientId }) });
+    const data = await res.json();
+    if(res.ok){ sessionStorage.setItem('nf_sp_tok', data.access_token);
+      sessionStorage.setItem('nf_sp_exp', Date.now() + data.expires_in*1000 - 60000);
+      if(data.refresh_token) sessionStorage.setItem('nf_sp_ref', data.refresh_token); }
+  }catch(e){}
+}
+async function spApi(path){
+  await spRefreshIfNeeded();
+  const res = await fetch('https://api.spotify.com/v1'+path, { headers:{Authorization:'Bearer '+SP.token} });
+  if(!res.ok) throw new Error('Spotify API '+res.status);
+  return res.json();
+}
+let spTrack = null;
+async function spSearch(){
+  const q = $('spSearch').value.trim(); if(!q) return;
+  $('spResults').innerHTML = '<div class="small">מחפש...</div>';
+  try{
+    const d = await spApi('/search?type=track&limit=8&q='+encodeURIComponent(q));
+    $('spResults').innerHTML = '';
+    (d.tracks.items||[]).forEach(tr=>{
+      const div = document.createElement('div'); div.className='track';
+      const img = tr.album.images && tr.album.images[2] ? tr.album.images[2].url : (tr.album.images[0]||{}).url;
+      div.innerHTML = (img?'<img src="'+img+'" alt="">':'') +
+        '<div><div class="n"></div><div class="a"></div></div><div class="spacer" style="flex:1"></div><div>▶️</div>';
+      div.querySelector('.n').textContent = tr.name;
+      div.querySelector('.a').textContent = tr.artists.map(a=>a.name).join(', ');
+      div.onclick = ()=>{ document.querySelectorAll('.track').forEach(x=>x.classList.remove('sel')); div.classList.add('sel');
+        spTrack = { id:tr.id, name:tr.name, artist:tr.artists.map(a=>a.name.join?a.name:a.name).join(', '),
+          url:tr.external_urls.spotify, img };
+        $('spPicked').classList.remove('hidden');
+        $('spPicked').innerHTML = '<div class="track sel"><div><div class="n">✅ '+tr.name+'</div><div class="a">'+
+          tr.artists.map(a=>a.name).join(', ')+'</div></div></div>' +
+          '<p class="small">כשהמשחק מתחיל: לחץ כאן 👉 <a href="'+tr.external_urls.spotify+'" target="_blank" style="color:#80ed99">נגן את השיר בספוטיפי</a> והמשחק יקשיב לביטים דרך המיקרופון 🎤</p>';
+      };
+      $('spResults').appendChild(div);
+    });
+    if(!(d.tracks.items||[]).length) $('spResults').innerHTML='<div class="small">לא נמצאו שירים</div>';
+  }catch(e){ $('spResults').innerHTML='<div class="small">שגיאה: '+e.message+'</div>'; }
+}
+function spUpdateUI(){
+  const on = !!SP.token;
+  $('spDisconnected').classList.toggle('hidden', on);
+  $('spConnected').classList.toggle('hidden', !on);
+  if(on){ spApi('/me').then(me=>{ $('spUser').textContent = 'מחובר כ: '+(me.display_name||me.id); }).catch(()=>{ $('spUser').textContent='מחובר'; }); }
+}
+$('spConnect').onclick = spLogin;
+$('spGo').onclick = spSearch;
+$('spSearch').addEventListener('keydown', e=>{ if(e.key==='Enter') spSearch(); });
+$('spDisconnect').onclick = ()=>{ sessionStorage.removeItem('nf_sp_tok'); sessionStorage.removeItem('nf_sp_ref'); spTrack=null; spUpdateUI(); };
+
+// ============================ AUDIO / BEAT SOURCES ============================
+let actx = null, micStream = null, micAnalyser = null, liveDet = new LiveBeatDetector();
+let fileBeats = null, fileBpm = 0, fileBuffer = null, fileSource = null, fileT0 = 0, nextBeatIdx = 0;
+let audioEl = null;
+
+async function startMic(){
+  micStream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:true } });
+  actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+  await actx.resume();
+  const src = actx.createMediaStreamSource(micStream);
+  micAnalyser = actx.createAnalyser(); micAnalyser.fftSize = 1024; micAnalyser.smoothingTimeConstant = 0.3;
+  src.connect(micAnalyser);
+  liveDet = new LiveBeatDetector();
+}
+function pollMicBeat(){
+  if(!micAnalyser) return false;
+  const data = new Uint8Array(micAnalyser.frequencyBinCount);
+  micAnalyser.getByteFrequencyData(data);
+  // bass band energy: bins 1..5 (~45-235Hz @48k)
+  let e=0; for(let i=1;i<=5;i++) e+=data[i]; e/=5;
+  return liveDet.feed(e, actx.currentTime);
+}
+async function loadSongFile(file){
+  actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+  const buf = await file.arrayBuffer();
+  fileBuffer = await actx.decodeAudioData(buf);
+  const mono = fileBuffer.getChannelData(0);
+  const r = detectBeatsOffline(mono, fileBuffer.sampleRate);
+  fileBeats = r.beats; fileBpm = r.bpm;
+  if(TEST){ window.__nf.lastBeats = r.beats; window.__nf.lastBpm = r.bpm; }
+  return r;
+}
+function startFilePlayback(){
+  stopFilePlayback();
+  fileSource = actx.createBufferSource(); fileSource.buffer = fileBuffer;
+  fileSource.connect(actx.destination);
+  fileT0 = actx.currentTime + 0.1; nextBeatIdx = 0;
+  fileSource.start(fileT0);
+}
+function stopFilePlayback(){ try{ fileSource && fileSource.stop(); }catch(e){} fileSource=null; }
+function songTime(){ return actx.currentTime - fileT0; }
+
+// tiny synth sfx
+function sfx(kind){
+  if(!actx) return;
+  try{
+    const t=actx.currentTime;
+    if(kind==='slice'){ const o=actx.createOscillator(), g=actx.createGain();
+      o.type='triangle'; o.frequency.setValueAtTime(900,t); o.frequency.exponentialRampToValueAtTime(300,t+.12);
+      g.gain.setValueAtTime(.15,t); g.gain.exponentialRampToValueAtTime(.001,t+.13);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t+.14); }
+    if(kind==='bomb'){ const o=actx.createOscillator(), g=actx.createGain();
+      o.type='sawtooth'; o.frequency.setValueAtTime(120,t); o.frequency.exponentialRampToValueAtTime(30,t+.5);
+      g.gain.setValueAtTime(.3,t); g.gain.exponentialRampToValueAtTime(.001,t+.5);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t+.5); }
+    if(kind==='beat'){ const o=actx.createOscillator(), g=actx.createGain();
+      o.type='sine'; o.frequency.setValueAtTime(1800,t);
+      g.gain.setValueAtTime(.04,t); g.gain.exponentialRampToValueAtTime(.001,t+.05);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t+.06); }
+  }catch(e){}
+}
+
+// ============================ HAND TRACKING ============================
+let handLandmarker = null, video = null, camStream = null, handReady = false;
+async function initCamera(){
+  $('menuStatus').textContent = 'מפעיל מצלמה ומודל זיהוי יד...';
+  const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+  const fileset = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+  handLandmarker = await vision.HandLandmarker.createFromOptions(fileset, {
+    baseOptions:{ modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task', delegate:'GPU' },
+    runningMode:'VIDEO', numHands:2 });
+  camStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user', width:{ideal:640}, height:{ideal:480} }, audio:false });
+  video = document.createElement('video');
+  video.srcObject = camStream; video.muted = true; video.playsInline = true;
+  await video.play();
+  handReady = true;
+  $('camNote').classList.remove('hidden');
+}
+function detectHands(nowMs){
+  if(!handReady || !video || video.readyState < 2) return [];
+  try{
+    const res = handLandmarker.detectForVideo(video, nowMs);
+    const tips = [];
+    if(res && res.landmarks) for(const lm of res.landmarks){
+      if(lm && lm[8]) tips.push({ x:(1-lm[8].x)*W, y:lm[8].y*H }); // mirrored
+    }
+    return tips;
+  }catch(e){ return []; }
+}
+
+// ============================ GAME ENGINE ============================
+const FRUITS = [
+  {e:'🍉', juice:'#e5383b', r:34, pts:10},
+  {e:'🍊', juice:'#ff9f1c', r:30, pts:10},
+  {e:'🍎', juice:'#e5383b', r:30, pts:10},
+  {e:'🍋', juice:'#ffe66d', r:28, pts:10},
+  {e:'🥝', juice:'#80ed99', r:27, pts:10},
+  {e:'🍇', juice:'#9d4edd', r:30, pts:10},
+  {e:'⭐', juice:'#ffd60a', r:26, pts:30, rare:true},
+];
+const BOMB = {e:'💣', juice:'#333', r:30};
+const G = 1400; // px/s^2
+const state = {
+  running:false, paused:false, score:0, misses:0, sliced:0,
+  fruits:[], parts:[], popups:[], blades:new Map(),
+  mode:'none', endless:true, diff:'normal', camera:true, autoFreeze:false,
+  startT:0, elapsed:0, lastSpawn:0, spawnEvery:0.9, shakeT:0,
+  freezeUntil:0, freezeReadyAt:0, freezeUsed:0,
+  timed:60, beatFlashT:0, lastBeatSpawn:-10, bpm:0,
+};
+let best = +localStorage.getItem('nf_best')||0;
+$('hBest').textContent = best;
+
+function spawnFruit(forceType){
+  const hard = state.diff==='hard';
+  const roll = Math.random();
+  let type;
+  if(forceType==='bomb' || (!forceType && roll < (hard?0.13:0.08))) type = {bomb:true, ...BOMB};
+  else { const pool = FRUITS.filter(f=>!f.rare || Math.random()<0.12);
+    type = pool[Math.floor(Math.random()*pool.length)]; }
+  const x = W*(0.15+Math.random()*0.7);
+  const peakY = H*(0.18+Math.random()*0.3);
+  const vy = -Math.sqrt(2*G*(H+60-peakY));
+  const vx = (W/2 - x)*(Math.random()*0.6)/1.5 + (Math.random()-0.5)*160;
+  state.fruits.push({ x, y:H+50, vx, vy, r:type.r, e:type.e, juice:type.juice,
+    pts:type.pts||0, bomb:!!type.bomb, rot:Math.random()*6.28, vr:(Math.random()-0.5)*4,
+    sliced:false, born:state.elapsed, beat:false });
+}
+function spawnBeatFruits(strong){
+  spawnFruit();
+  if(strong || Math.random()<0.25) spawnFruit();
+  if(Math.random()<0.06) spawnFruit('bomb');
+}
+function juiceSplash(x,y,color){
+  for(let i=0;i<14;i++){ const a=Math.random()*6.28, s=120+Math.random()*320;
+    state.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-100,t:0,life:.5+Math.random()*.3,color,r:3+Math.random()*4}); }
+}
+function popup(x,y,txt,color){ state.popups.push({x,y,txt,color,t:0}); }
+
+function sliceCheck(x1,y1,x2,y2){
+  let hits=0;
+  for(const f of state.fruits){
+    if(f.sliced) continue;
+    // distance from circle center to segment
+    const dx=x2-x1, dy=y2-y1, L2=dx*dx+dy*dy;
+    let t = L2? ((f.x-x1)*dx+(f.y-y1)*dy)/L2 : 0; t=Math.max(0,Math.min(1,t));
+    const px=x1+t*dx, py=y1+t*dy;
+    const d=Math.hypot(f.x-px,f.y-py);
+    if(d < f.r + 16){
+      f.sliced=true; hits++;
+      if(f.bomb){
+        state.score=Math.max(0,state.score-50); state.shakeT=0.4;
+        juiceSplash(f.x,f.y,'#555'); popup(f.x,f.y,'💥 -50','#ff5d8f'); sfx('bomb');
+      } else {
+        state.score+=f.pts; state.sliced++;
+        juiceSplash(f.x,f.y,f.juice); popup(f.x,f.y,'+'+f.pts,'#80ed99'); sfx('slice');
+      }
+      if(TEST) window.__nf.state.slicedTotal = state.sliced;
+    }
+  }
+  return hits;
+}
+function doFreeze(auto){
+  const now=state.elapsed;
+  if(now < state.freezeReadyAt) return;
+  state.freezeUntil = now+5; state.freezeReadyAt = now+18; state.freezeUsed++;
+  popup(W/2, H*0.4, '❄️ קפאון!', '#89c2ff');
+}
+
+// blades (hands / pointers)
+function bladeUpdate(id, x, y, active){
+  let b = state.blades.get(id);
+  if(!b){ b={pts:[]}; state.blades.set(id,b); }
+  const now = performance.now();
+  const prev = b.pts.length? b.pts[b.pts.length-1] : null;
+  b.pts.push({x,y,t:now});
+  while(b.pts.length && now-b.pts[0].t>180) b.pts.shift();
+  if(active && prev){
+    const dt=(now-prev.t)/1000, dist=Math.hypot(x-prev.x,y-prev.y);
+    if(dt>0 && dist/dt > 350) sliceCheck(prev.x,prev.y,x,y);
+  }
+}
+function clearBlade(id){ state.blades.delete(id); }
+
+// pointer fallback
+const pointers = new Map();
+canvas.addEventListener('pointerdown', e=>{ pointers.set(e.pointerId,true); bladeUpdate('p'+e.pointerId, e.clientX, e.clientY, true); });
+canvas.addEventListener('pointermove', e=>{ if(pointers.has(e.pointerId) || !state.camera) bladeUpdate('p'+e.pointerId, e.clientX, e.clientY, true); });
+addEventListener('pointerup', e=>{ pointers.delete(e.pointerId); clearBlade('p'+e.pointerId); });
+addEventListener('pointercancel', e=>{ pointers.delete(e.pointerId); clearBlade('p'+e.pointerId); });
+
+// main loop
+let lastFrame = performance.now();
+function loop(nowMs){
+  requestAnimationFrame(loop);
+  const rawDt = Math.min(0.05,(nowMs-lastFrame)/1000); lastFrame=nowMs;
+  if(!state.running || state.paused){ draw(nowMs); return; }
+  const frozen = state.elapsed < state.freezeUntil;
+  const dt = rawDt * (frozen?0.3:1);
+  state.elapsed += dt;
+
+  // camera hands
+  if(state.camera && handReady && !TEST){
+    const tips = detectHands(nowMs);
+    const seen = new Set();
+    tips.forEach((p,i)=>{ seen.add('h'+i); bladeUpdate('h'+i,p.x,p.y,true); });
+    for(const k of [...state.blades.keys()]) if(k[0]==='h' && !seen.has(k)) clearBlade(k);
+  }
+
+  // beats
+  let beatNow=false;
+  if(state.mode==='file' && fileBeats){
+    while(nextBeatIdx < fileBeats.length && songTime() >= fileBeats[nextBeatIdx]){
+      spawnBeatFruits(nextBeatIdx%4===0); nextBeatIdx++; beatNow=true;
+      if(TEST) window.__nf.spawnLog.push({t:+(songTime()).toFixed(3), beat:fileBeats[nextBeatIdx-1]});
+    }
+    if(fileBuffer && songTime() > fileBuffer.duration + 2) endGame();
+  } else if((state.mode==='mic' || state.mode==='spotify') && micAnalyser){
+    if(pollMicBeat()){
+      spawnBeatFruits(state.sliced%4===0); beatNow=true; state.lastBeatSpawn=state.elapsed;
+      const b=liveDet.bpm(); if(b){ state.bpm=b; $('hBpm').textContent=b; }
+    }
+    // baseline so silence never stalls the game
+    if(state.elapsed - state.lastBeatSpawn > 2.5){ spawnFruit(); state.lastBeatSpawn=state.elapsed; }
+  } else {
+    // classic spawner
+    if(state.elapsed - state.lastSpawn > state.spawnEvery){
+      state.lastSpawn = state.elapsed;
+      spawnFruit(); if(Math.random()<(state.diff==='hard'?0.35:0.2)) spawnFruit();
+      state.spawnEvery = Math.max(state.diff==='hard'?0.42:0.55, state.spawnEvery*0.985);
+    }
+  }
+  if(beatNow){ state.beatFlashT = 0.15; $('beatDot').style.background='#4cc9f0'; sfx('beat'); }
+  if(state.beatFlashT>0){ state.beatFlashT-=rawDt; if(state.beatFlashT<=0) $('beatDot').style.background='#333'; }
+
+  // timed mode end
+  if(!state.endless && state.elapsed >= state.timed) endGame();
+
+  // auto freeze
+  if(state.autoFreeze && state.elapsed >= state.freezeReadyAt && state.fruits.filter(f=>!f.sliced&&!f.bomb).length>=4) doFreeze(true);
+
+  // physics
+  for(let i=state.fruits.length-1;i>=0;i--){
+    const f=state.fruits[i];
+    if(!f.sliced){
+      f.vy += G*dt; f.x += f.vx*dt; f.y += f.vy*dt; f.rot += f.vr*dt;
+      if(f.x < f.r){ f.x=f.r; f.vx*=-0.7; } if(f.x > W-f.r){ f.x=W-f.r; f.vx*=-0.7; }
+      if(f.y > H+90 && f.vy>0){
+        state.fruits.splice(i,1);
+        if(!f.bomb){ state.misses++; $('hMiss').textContent=state.misses; popup(f.x, H-70, 'פסילה 😅', '#ff5d8f'); }
+        continue;
+      }
+    } else {
+      // sliced fruit: fly apart as two halves (fade)
+      f.halfT = (f.halfT||0)+rawDt;
+      if(f.halfT>0.5){ state.fruits.splice(i,1); }
+    }
+  }
+  for(let i=state.parts.length-1;i>=0;i--){ const p=state.parts[i];
+    p.t+=rawDt; p.x+=p.vx*rawDt; p.y+=p.vy*rawDt; p.vy+=900*rawDt;
+    if(p.t>p.life) state.parts.splice(i,1); }
+  for(let i=state.popups.length-1;i>=0;i--){ const p=state.popups[i];
+    p.t+=rawDt; p.y-=40*rawDt; if(p.t>1) state.popups.splice(i,1); }
+
+  $('hScore').textContent = state.score;
+  if(state.shakeT>0) state.shakeT-=rawDt;
+  // freeze button state
+  const fb=$('freezeBtn');
+  if(state.elapsed < state.freezeUntil){ fb.textContent='❄️ '+(state.freezeUntil-state.elapsed).toFixed(1); fb.classList.add('cooling'); }
+  else if(state.elapsed < state.freezeReadyAt){ fb.textContent='❄️ '+Math.ceil(state.freezeReadyAt-state.elapsed); fb.classList.add('cooling'); }
+  else { fb.textContent='❄️ קפאון'; fb.classList.remove('cooling'); }
+  draw(nowMs);
+}
+
+function draw(nowMs){
+  ctx.clearRect(0,0,W,H);
+  ctx.save();
+  if(state.shakeT>0) ctx.translate((Math.random()-.5)*16,(Math.random()-.5)*16);
+  // camera background
+  if(state.camera && video && handReady){
+    ctx.save(); ctx.scale(-1,1);
+    const vw=video.videoWidth||640, vh=video.videoHeight||480;
+    const s=Math.max(W/vw,H/vh), dw=vw*s, dh=vh*s;
+    ctx.drawImage(video, -(W+dw)/2, (H-dh)/2, dw, dh);
+    ctx.restore();
+    ctx.fillStyle='rgba(5,8,18,.45)'; ctx.fillRect(0,0,W,H);
+  } else {
+    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#101830'); g.addColorStop(1,'#0b0f1a');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  }
+  const frozen = state.elapsed < state.freezeUntil;
+  if(frozen){ ctx.fillStyle='rgba(100,160,255,.10)'; ctx.fillRect(0,0,W,H); }
+  // fruits
+  for(const f of state.fruits){
+    ctx.save(); ctx.translate(f.x,f.y); ctx.rotate(f.rot);
+    if(f.sliced){ ctx.globalAlpha = Math.max(0,1-(f.halfT||0)*2); ctx.translate(-14,8); ctx.rotate(-.4); }
+    ctx.font = (f.r*2)+'px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(f.e,0,0);
+    if(f.sliced){ ctx.globalAlpha = Math.max(0,1-(f.halfT||0)*2); ctx.translate(28,-16); ctx.rotate(.8); ctx.fillText(f.e,0,0); }
+    ctx.restore();
+  }
+  // particles
+  for(const p of state.parts){ ctx.globalAlpha=Math.max(0,1-p.t/p.life); ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,6.28); ctx.fill(); }
+  ctx.globalAlpha=1;
+  // blades
+  for(const [,b] of state.blades){
+    if(b.pts.length<2) continue;
+    ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+    for(let i=1;i<b.pts.length;i++){
+      const a=i/b.pts.length;
+      ctx.strokeStyle = 'rgba(76,201,240,'+(a*.95)+')';
+      ctx.lineWidth = 2+a*14;
+      ctx.shadowColor='#4cc9f0'; ctx.shadowBlur=18;
+      ctx.beginPath(); ctx.moveTo(b.pts[i-1].x,b.pts[i-1].y); ctx.lineTo(b.pts[i].x,b.pts[i].y); ctx.stroke();
+    }
+    const tip=b.pts[b.pts.length-1];
+    ctx.fillStyle='#e0fbff'; ctx.beginPath(); ctx.arc(tip.x,tip.y,6,0,6.28); ctx.fill();
+    ctx.restore();
+  }
+  // popups
+  for(const p of state.popups){ ctx.globalAlpha=Math.max(0,1-p.t); ctx.fillStyle=p.color;
+    ctx.font='bold 30px "Segoe UI", Arial'; ctx.textAlign='center'; ctx.fillText(p.txt,p.x,p.y); }
+  ctx.globalAlpha=1;
+  // timed countdown
+  if(state.running && !state.endless){
+    const left=Math.max(0,state.timed-state.elapsed);
+    ctx.fillStyle = left<10?'#ff5d8f':'#dfe6ff'; ctx.font='bold 26px "Segoe UI", Arial'; ctx.textAlign='center';
+    ctx.fillText('⏱️ '+Math.ceil(left), W/2, 34);
+  }
+  ctx.restore();
+}
+requestAnimationFrame(loop);
+
+// ============================ FLOW ============================
+let musicMode='none';
+document.querySelectorAll('#musicCards .card').forEach(c=>{
+  c.onclick=()=>{ document.querySelectorAll('#musicCards .card').forEach(x=>x.classList.remove('sel'));
+    c.classList.add('sel'); musicMode=c.dataset.music;
+    $('spotifyPanel').classList.toggle('hidden', musicMode!=='spotify');
+    $('filePanel').classList.toggle('hidden', musicMode!=='file');
+    if(musicMode==='spotify') spUpdateUI();
+  };
+});
+$('pickFile').onclick=()=>$('fileInput').click();
+$('fileInput').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  $('fileInfo').textContent='מנתח ביטים...';
+  try{
+    const r=await loadSongFile(f);
+    $('fileInfo').textContent='✅ '+f.name+' — '+r.beats.length+' ביטים, בערך '+r.bpm+' BPM';
+  }catch(err){ $('fileInfo').textContent='לא הצלחתי לקרוא את הקובץ: '+err.message; }
+};
+
+async function startGame(){
+  state.camera = $('optCamera').checked && !TEST;
+  state.endless = $('optEndless').checked;
+  state.diff = $('optDiff').value;
+  state.autoFreeze = $('optAutoFreeze').checked;
+  state.mode = musicMode;
+  if(state.mode==='spotify' && !spTrack){ toast('בחר שיר בספוטיפי קודם 🎵'); return; }
+  if(state.mode==='file' && !fileBeats){ toast('בחר קובץ שיר קודם 📁'); return; }
+  $('menu').classList.add('hidden'); $('results').classList.add('hidden');
+
+  actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+  try{ await actx.resume(); }catch(e){}
+
+  if(state.camera && !handReady){
+    try{ await initCamera(); }
+    catch(e){ state.camera=false; toast('לא הצלחתי להפעיל מצלמה/זיהוי יד - עובר למצב מגע 👆 ('+e.message+')'); }
+  }
+  if((state.mode==='mic' || state.mode==='spotify')){
+    try{ await startMic(); }
+    catch(e){ toast('בלי מיקרופון אין סנכרון ביטים - ממשיך במצב רגיל ('+e.message+')'); state.mode='none'; }
+  }
+
+  // countdown
+  $('countOverlay').classList.remove('hidden');
+  $('countHint').textContent = state.mode==='spotify' ? '🎧 אל תשכח ללחוץ על "נגן את השיר בספוטיפי"!' :
+    state.mode==='mic' ? '🎤 תנגנו מוזיקה בקול!' : '';
+  for(let i=3;i>=1;i--){ $('countdown').textContent=i; await new Promise(r=>setTimeout(r,800)); }
+  $('countOverlay').classList.add('hidden');
+
+  Object.assign(state,{running:true,paused:false,score:0,misses:0,sliced:0,fruits:[],parts:[],popups:[],
+    startT:performance.now(),elapsed:0,lastSpawn:0,spawnEvery:state.diff==='hard'?0.7:0.9,shakeT:0,
+    freezeUntil:0,freezeReadyAt:state.diff==='hard'?25:15,lastBeatSpawn:-10,bpm:0});
+  $('hScore').textContent='0'; $('hMiss').textContent='0';
+  $('hud').classList.remove('hidden');
+  $('hBpmBox').classList.toggle('hidden', state.mode==='none'||state.mode==='file');
+  $('beatDot').classList.toggle('hidden', state.mode==='none');
+  if(state.mode==='file'){ await actx.resume(); startFilePlayback(); $('hBpmBox').classList.remove('hidden'); $('hBpm').textContent=fileBpm||'-'; }
+  if(TEST){ window.__nf.state.running=true; }
+}
+function endGame(){
+  if(!state.running) return;
+  state.running=false;
+  stopFilePlayback();
+  if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; micAnalyser=null; }
+  $('hud').classList.add('hidden'); $('pauseOverlay').classList.add('hidden');
+  const nb = state.score>best; if(nb){ best=state.score; localStorage.setItem('nf_best',best); }
+  $('hBest').textContent=best;
+  $('rScore').textContent=state.score+' נקודות';
+  $('rDetail').textContent='🍉 חתכת '+state.sliced+' פירות · 😅 '+state.misses+' פסילות · ❄️ '+(state.freezeUsed)+' קפאונים'+(state.bpm?' · 🎵 '+state.bpm+' BPM':'');
+  $('rBest').textContent = nb ? '🏆 שיא חדש!' : 'השיא שלך: '+best;
+  $('results').classList.remove('hidden');
+}
+$('startBtn').onclick=startGame;
+$('endBtn').onclick=endGame;
+$('quitBtn').onclick=endGame;
+$('pauseBtn').onclick=()=>{ if(!state.running) return; state.paused=true; $('pauseOverlay').classList.remove('hidden'); if(actx) actx.suspend(); };
+$('resumeBtn').onclick=()=>{ state.paused=false; $('pauseOverlay').classList.add('hidden'); if(actx) actx.resume(); };
+$('againBtn').onclick=()=>{ $('results').classList.add('hidden'); startGame(); };
+$('menuBtn').onclick=()=>{ $('results').classList.add('hidden'); $('menu').classList.remove('hidden'); };
+$('freezeBtn').onclick=()=>doFreeze(false);
+
+// ============================ TEST HOOKS ============================
+if(TEST){
+  window.__nf = {
+    state, lastBeats:[], lastBpm:0, spawnLog:[],
+    slicePath(pts){ for(let i=1;i<pts.length;i++) sliceCheck(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]); },
+    spawnFruit, startGame, endGame, doFreeze,
+    setMusic(m){ musicMode=m; },
+    getFruits(){ return state.fruits.map(f=>({x:f.x,y:f.y,bomb:f.bomb,sliced:f.sliced})); },
+  };
+}
+
+// init
+spHandleCallback().then(spUpdateUI);
+</script>
+</body>
+</html>
