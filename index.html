@@ -82,23 +82,17 @@
 
   <h2>🎵 מוזיקה</h2>
   <div class="cards" id="musicCards">
-    <div class="card" data-music="spotify"><div class="t">🎵 ספוטיפי</div><div class="d">מתחברים לספוטיפי, בוחרים שיר, מנגנים אותו באפליקציה - והפירות מגיעים בדיוק על הביט שהמשחק שומע</div></div>
+    <div class="card" data-music="spotify"><div class="t">🎵 ספוטיפי</div><div class="d">מדביקים קישור לשיר מספוטיפי, מנגנים אותו באפליקציה - והפירות מגיעים בדיוק על הביט שהמשחק שומע</div></div>
     <div class="card" data-music="mic"><div class="t">🎤 מוזיקה חיה</div><div class="d">תנגנו כל שיר בקול (מכל אפליקציה) - המשחק מזהה את הביטים דרך המיקרופון</div></div>
     <div class="card" data-music="file"><div class="t">📁 קובץ שיר</div><div class="d">בוחרים קובץ שיר מהמכשיר - ניתוח מדויק מראש של כל הביטים</div></div>
     <div class="card sel" data-music="none"><div class="t">🔇 בלי מוזיקה</div><div class="d">משחק קלאסי בלי קצב</div></div>
   </div>
 
   <div id="spotifyPanel" class="hidden" style="margin-top:10px; width:min(94vw,560px);">
-    <div id="spDisconnected">
-      <button class="btn green" id="spConnect">התחבר לספוטיפי 🎧</button>
-      <div class="small" style="margin-top:6px">מתקדם: <input type="text" id="spClientId" placeholder="Client ID משלך (אופציונלי)" style="width:240px"></div>
-    </div>
-    <div id="spConnected" class="hidden">
-      <div class="row"><span id="spUser" class="small"></span><button class="hbtn" id="spDisconnect">התנתק</button></div>
-      <div class="row"><input type="text" id="spSearch" placeholder="חפש שיר בספוטיפי..."><button class="btn" id="spGo">חפש</button></div>
-      <div id="spResults"></div>
-      <div id="spPicked" class="hidden"></div>
-    </div>
+    <p class="small">1️⃣ באפליקציית ספוטיפי בחר שיר → שיתוף → העתק קישור, ותדביק כאן:</p>
+    <div class="row"><input type="text" id="spLink" placeholder="https://open.spotify.com/track/..." dir="ltr" style="width:min(94vw,330px)"><button class="btn" id="spFetch">מצא שיר 🔍</button></div>
+    <div id="spPicked"></div>
+    <p class="small">2️⃣ כשהמשחק מתחיל: נגן את השיר באפליקציית ספוטיפי — המשחק שומע את הביטים דרך המיקרופון ומשגר פירות בדיוק על הקצב 🎤</p>
   </div>
 
   <div id="filePanel" class="hidden" style="margin-top:10px">
@@ -210,99 +204,27 @@ class LiveBeatDetector {
 }
 // BEATDETECT-END
 
-// ============================ SPOTIFY (PKCE) ============================
-const SP = {
-  get clientId(){ return localStorage.getItem('nf_sp_cid') || 'PASTE_SPOTIFY_CLIENT_ID'; },
-  get token(){ const t=sessionStorage.getItem('nf_sp_tok'); const exp=+sessionStorage.getItem('nf_sp_exp')||0;
-    return (t && Date.now()<exp) ? t : null; },
-  get refresh(){ return sessionStorage.getItem('nf_sp_ref'); },
-  redirect: location.origin + location.pathname,
-};
-function b64url(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
-async function spLogin(){
-  const cid = $('spClientId').value.trim();
-  if(cid) localStorage.setItem('nf_sp_cid', cid);
-  if(!SP.clientId || SP.clientId==='PASTE_SPOTIFY_CLIENT_ID'){ toast('חסר Client ID של ספוטיפי - שים אחד בשדה המתקדם'); return; }
-  const ver = b64url(crypto.getRandomValues(new Uint8Array(64)));
-  sessionStorage.setItem('nf_sp_ver', ver);
-  const ch = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ver)));
-  const url = 'https://accounts.spotify.com/authorize?response_type=code&client_id='+encodeURIComponent(SP.clientId)
-    +'&redirect_uri='+encodeURIComponent(SP.redirect)+'&code_challenge_method=S256&code_challenge='+ch
-    +'&scope=user-read-private user-read-email';
-  location.href = url;
-}
-async function spHandleCallback(){
-  const code = Q.get('code');
-  if(!code) return;
-  try{
-    const res = await fetch('https://accounts.spotify.com/api/token', { method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body: new URLSearchParams({ grant_type:'authorization_code', code,
-        redirect_uri: SP.redirect, client_id: SP.clientId, code_verifier: sessionStorage.getItem('nf_sp_ver')||'' }) });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data.error_description || data.error || 'token error');
-    sessionStorage.setItem('nf_sp_tok', data.access_token);
-    sessionStorage.setItem('nf_sp_exp', Date.now() + data.expires_in*1000 - 60000);
-    if(data.refresh_token) sessionStorage.setItem('nf_sp_ref', data.refresh_token);
-    toast('מחובר לספוטיפי! ✅');
-  }catch(e){ toast('התחברות נכשלה: '+e.message); }
-  history.replaceState(null,'',location.pathname);
-}
-async function spRefreshIfNeeded(){
-  if(SP.token || !SP.refresh) return;
-  try{
-    const res = await fetch('https://accounts.spotify.com/api/token', { method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body: new URLSearchParams({ grant_type:'refresh_token', refresh_token: SP.refresh, client_id: SP.clientId }) });
-    const data = await res.json();
-    if(res.ok){ sessionStorage.setItem('nf_sp_tok', data.access_token);
-      sessionStorage.setItem('nf_sp_exp', Date.now() + data.expires_in*1000 - 60000);
-      if(data.refresh_token) sessionStorage.setItem('nf_sp_ref', data.refresh_token); }
-  }catch(e){}
-}
-async function spApi(path){
-  await spRefreshIfNeeded();
-  const res = await fetch('https://api.spotify.com/v1'+path, { headers:{Authorization:'Bearer '+SP.token} });
-  if(!res.ok) throw new Error('Spotify API '+res.status);
-  return res.json();
-}
+// ============================ SPOTIFY (oEmbed link) ============================
+// New Spotify dev apps require Premium + allow only 5 users (Feb 2026 rules),
+// so song picking works by pasting a Spotify track link: public oEmbed gives
+// the real song name + cover, playback runs in the user's own Spotify app,
+// and the game syncs fruit to the beat it hears through the microphone.
 let spTrack = null;
-async function spSearch(){
-  const q = $('spSearch').value.trim(); if(!q) return;
-  $('spResults').innerHTML = '<div class="small">מחפש...</div>';
+$('spFetch').onclick = async ()=>{
+  const link = $('spLink').value.trim();
+  if(!/(open\.spotify\.com\/(intl-[a-z-]+\/)?track\/|spotify:track:)/.test(link)){ toast('זה לא נראה כמו קישור לשיר בספוטיפי 🤔'); return; }
+  $('spFetch').textContent = 'מחפש...';
   try{
-    const d = await spApi('/search?type=track&limit=8&q='+encodeURIComponent(q));
-    $('spResults').innerHTML = '';
-    (d.tracks.items||[]).forEach(tr=>{
-      const div = document.createElement('div'); div.className='track';
-      const img = tr.album.images && tr.album.images[2] ? tr.album.images[2].url : (tr.album.images[0]||{}).url;
-      div.innerHTML = (img?'<img src="'+img+'" alt="">':'') +
-        '<div><div class="n"></div><div class="a"></div></div><div class="spacer" style="flex:1"></div><div>▶️</div>';
-      div.querySelector('.n').textContent = tr.name;
-      div.querySelector('.a').textContent = tr.artists.map(a=>a.name).join(', ');
-      div.onclick = ()=>{ document.querySelectorAll('.track').forEach(x=>x.classList.remove('sel')); div.classList.add('sel');
-        spTrack = { id:tr.id, name:tr.name, artist:tr.artists.map(a=>a.name.join?a.name:a.name).join(', '),
-          url:tr.external_urls.spotify, img };
-        $('spPicked').classList.remove('hidden');
-        $('spPicked').innerHTML = '<div class="track sel"><div><div class="n">✅ '+tr.name+'</div><div class="a">'+
-          tr.artists.map(a=>a.name).join(', ')+'</div></div></div>' +
-          '<p class="small">כשהמשחק מתחיל: לחץ כאן 👉 <a href="'+tr.external_urls.spotify+'" target="_blank" style="color:#80ed99">נגן את השיר בספוטיפי</a> והמשחק יקשיב לביטים דרך המיקרופון 🎤</p>';
-      };
-      $('spResults').appendChild(div);
-    });
-    if(!(d.tracks.items||[]).length) $('spResults').innerHTML='<div class="small">לא נמצאו שירים</div>';
-  }catch(e){ $('spResults').innerHTML='<div class="small">שגיאה: '+e.message+'</div>'; }
-}
-function spUpdateUI(){
-  const on = !!SP.token;
-  $('spDisconnected').classList.toggle('hidden', on);
-  $('spConnected').classList.toggle('hidden', !on);
-  if(on){ spApi('/me').then(me=>{ $('spUser').textContent = 'מחובר כ: '+(me.display_name||me.id); }).catch(()=>{ $('spUser').textContent='מחובר'; }); }
-}
-$('spConnect').onclick = spLogin;
-$('spGo').onclick = spSearch;
-$('spSearch').addEventListener('keydown', e=>{ if(e.key==='Enter') spSearch(); });
-$('spDisconnect').onclick = ()=>{ sessionStorage.removeItem('nf_sp_tok'); sessionStorage.removeItem('nf_sp_ref'); spTrack=null; spUpdateUI(); };
+    const r = await fetch('https://open.spotify.com/oembed?url='+encodeURIComponent(link));
+    if(!r.ok) throw new Error('לא נמצא');
+    const d = await r.json();
+    spTrack = { name: d.title, url: link, img: d.thumbnail_url };
+    $('spPicked').innerHTML = '<div class="track sel">'+(d.thumbnail_url?'<img src="'+d.thumbnail_url+'" alt="">':'')+
+      '<div><div class="n">✅ '+d.title+'</div><div class="a">מתוך ספוטיפי</div></div></div>'+
+      '<p><a class="btn green" href="'+link+'" target="_blank" style="text-decoration:none">▶️ נגן בספוטיפי</a></p>';
+  }catch(e){ $('spPicked').innerHTML='<p class="small">לא הצלחתי למצוא את השיר - בדוק את הקישור</p>'; }
+  $('spFetch').textContent = 'מצא שיר 🔍';
+};
 
 // ============================ AUDIO / BEAT SOURCES ============================
 let actx = null, micStream = null, micAnalyser = null, liveDet = new LiveBeatDetector();
@@ -645,7 +567,6 @@ document.querySelectorAll('#musicCards .card').forEach(c=>{
     c.classList.add('sel'); musicMode=c.dataset.music;
     $('spotifyPanel').classList.toggle('hidden', musicMode!=='spotify');
     $('filePanel').classList.toggle('hidden', musicMode!=='file');
-    if(musicMode==='spotify') spUpdateUI();
   };
 });
 $('pickFile').onclick=()=>$('fileInput').click();
@@ -731,7 +652,6 @@ if(TEST){
 }
 
 // init
-spHandleCallback().then(spUpdateUI);
 </script>
 </body>
 </html>
