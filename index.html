@@ -502,6 +502,7 @@ function loop(nowMs){
 
 function draw(nowMs){
   ctx.clearRect(0,0,W,H);
+  ctx.direction='ltr';
   ctx.save();
   if(state.shakeT>0) ctx.translate((Math.random()-.5)*16,(Math.random()-.5)*16);
   // camera background
